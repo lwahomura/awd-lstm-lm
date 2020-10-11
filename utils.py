@@ -11,7 +11,6 @@ def repackage_hidden(h):
 
 
 def batchify(data, bsz, args):
-    print(args)
     # Work out how cleanly we can divide the dataset into bsz parts.
     nbatch = data.size(0) // bsz
     # Trim off any extra elements that wouldn't cleanly fit (remainders).
@@ -19,8 +18,9 @@ def batchify(data, bsz, args):
     # Evenly divide the data across the bsz batches.
     data = data.view(bsz, -1).t().contiguous()
     if args.cuda:
-        print("moved data to cuda")
+        print("moving data to cuda")
         data = data.cuda()
+        print("moved data to cuda")
     return data
 
 
