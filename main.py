@@ -100,6 +100,8 @@ else:
     corpus = data.Corpus(args.data)
     torch.save(corpus, fn)
 
+print('Got dataset')
+
 eval_batch_size = 10
 test_batch_size = 1
 train_data = batchify(corpus.train, args.batch_size, args)
@@ -115,7 +117,9 @@ criterion = None
 
 ntokens = len(corpus.dictionary)
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
-###
+
+print('Created model dataset')
+
 if args.resume:
     print('Resuming model ...')
     model_load(args.resume)
@@ -141,6 +145,7 @@ if not criterion:
     criterion = SplitCrossEntropyLoss(args.emsize, splits=splits, verbose=False)
 ###
 if args.cuda:
+    print('Moved model to cuda')
     model = model.cuda()
     criterion = criterion.cuda()
 ###
