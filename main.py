@@ -116,9 +116,9 @@ from splitcross import SplitCrossEntropyLoss
 criterion = None
 
 ntokens = len(corpus.dictionary)
+print('Creating model')
 model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers, args.dropout, args.dropouth, args.dropouti, args.dropoute, args.wdrop, args.tied)
-
-print('Created model dataset')
+print('Created model')
 
 if args.resume:
     print('Resuming model ...')
