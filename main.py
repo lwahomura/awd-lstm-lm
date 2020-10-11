@@ -97,7 +97,7 @@ if os.path.exists(fn):
     corpus = torch.load(fn)
 else:
     print('Producing dataset...')
-    corpus = data.Corpus(args.data)
+    corpus = data.Corpus(args.data, args.cuda)
     torch.save(corpus, fn)
 
 print('Got dataset')
