@@ -25,7 +25,7 @@ class Dictionary(object):
 
 
 class Corpus(object):
-    def __init__(self, path, cuda=False):
+    def __init__(self, path, cuda):
         self.cuda = cuda
         self.dictionary = Dictionary()
         self.train = self.tokenize(os.path.join(path, 'train.txt'))
@@ -47,9 +47,13 @@ class Corpus(object):
         # Tokenize file content
         with open(path, 'r') as f:
             if self.cuda:
+                print('creating tokens tensor on cuda')
                 ids = torch.cuda.LongTensor(tokens)
+                print('created tokens tensor on cuda')
             else:
+                print('creating tokens tensor')
                 ids = torch.LongTensor(tokens)
+                print('created tokens tensor')
             token = 0
             for line in f:
                 words = line.split() + ['<eos>']
