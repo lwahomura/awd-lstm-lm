@@ -18,6 +18,7 @@ def batchify(data, bsz, args):
     # Evenly divide the data across the bsz batches.
     data = data.view(bsz, -1).t().contiguous()
     if args.cuda:
+        print("moved data to cuda")
         data = data.cuda()
     return data
 
