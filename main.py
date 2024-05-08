@@ -12,7 +12,7 @@ from utils import batchify, get_batch, repackage_hidden
 
 parser = argparse.ArgumentParser(description='PyTorch PennTreeBank RNN/LSTM Language Model')
 parser.add_argument('--data', type=str, default='data/penn/',
-                    help='location of the data corpus')
+                    help='location of the data corpus')                 
 parser.add_argument('--model', type=str, default='LSTM',
                     help='type of recurrent net (LSTM, QRNN, GRU)')
 parser.add_argument('--emsize', type=int, default=400,
@@ -64,6 +64,11 @@ parser.add_argument('--optimizer', type=str,  default='sgd',
                     help='optimizer to use (sgd, adam)')
 parser.add_argument('--when', nargs="+", type=int, default=[-1],
                     help='When (which epochs) to divide the learning rate by 10 - accepts multiple')
+parser.add_argument('--unk', action='store_true')
+parser.add_argument('--remake_corpus', action='store_true')
+parser.add_argument('--data_percentage', type=int, default=100)
+parser.add_argument('--n_folds', type=int, default=0)
+parser.add_argument('--fold', type=int, default=0)
 args = parser.parse_args()
 args.tied = True
 
@@ -92,19 +97,21 @@ def model_load(fn):
 import os
 import hashlib
 fn = 'corpus.{}.data'.format(hashlib.md5(args.data.encode()).hexdigest())
-if os.path.exists(fn):
+if not args.remake_corpus and os.path.exists(fn):
     print('Loading cached dataset...')
     corpus = torch.load(fn)
 else:
     print('Producing dataset...')
-    corpus = data.Corpus(args.data)
+    corpus = data.Corpus(args.data, args.unk, args.data_percentage, args.seed, args.n_folds, args.fold)
     torch.save(corpus, fn)
 
 eval_batch_size = 10
 test_batch_size = 1
 train_data = batchify(corpus.train, args.batch_size, args)
 val_data = batchify(corpus.valid, eval_batch_size, args)
-test_data = batchify(corpus.test, test_batch_size, args)
+
+if args.n_folds == 0:
+    test_data = batchify(corpus.test, test_batch_size, args)
 
 ###############################################################################
 # Build the model
@@ -119,6 +126,16 @@ model = model.RNNModel(args.model, ntokens, args.emsize, args.nhid, args.nlayers
 if args.resume:
     print('Resuming model ...')
     model_load(args.resume)
+    new_l = len(corpus.dictionary.word2idx)
+    old_l = model.encoder.weight.data.size(0)
+    diff = new_l - old_l
+    if diff > 0:
+        model.encoder.weight.data = torch.cat((model.encoder.weight.data, torch.zeros(diff, 256).cuda()), 0)
+        model.decoder.bias.data = torch.cat((model.decoder.bias.data, torch.zeros(diff).cuda()), 0)
+    elif diff < 0:
+        model.encoder.weight.data = model.encoder.weight.data[:new_l]
+        model.decoder.bias.data = model.decoder.bias.data[:new_l]
+
     optimizer.param_groups[0]['lr'] = args.lr
     model.dropouti, model.dropouth, model.dropout, args.dropoute = args.dropouti, args.dropouth, args.dropout, args.dropoute
     if args.wdrop:
@@ -227,6 +244,9 @@ lr = args.lr
 best_val_loss = []
 stored_loss = 100000000
 
+best_epoch = 0
+best_ppl = 0
+
 # At any point you can hit Ctrl + C to break out of training early.
 try:
     optimizer = None
@@ -254,6 +274,7 @@ try:
 
             if val_loss2 < stored_loss:
                 model_save(args.save)
+                best_epoch = epoch
                 print('Saving Averaged!')
                 stored_loss = val_loss2
 
@@ -272,6 +293,8 @@ try:
                 model_save(args.save)
                 print('Saving model (new best validation)')
                 stored_loss = val_loss
+                best_epoch = epoch
+                best_ppl = math.exp(val_loss)
 
             if args.optimizer == 'sgd' and 't0' not in optimizer.param_groups[0] and (len(best_val_loss)>args.nonmono and val_loss > min(best_val_loss[:-args.nonmono])):
                 print('Switching to ASGD')
@@ -285,16 +308,23 @@ try:
 
             best_val_loss.append(val_loss)
 
+        if epoch - 5 >= best_epoch:
+            print('Early stopping')
+            break
+
 except KeyboardInterrupt:
     print('-' * 89)
     print('Exiting from training early')
 
-# Load the best saved model.
-model_load(args.save)
+print('| Best results | epoch {:3d} | test ppl {:8.2f}'.format(best_epoch, best_ppl))
 
-# Run on test data.
-test_loss = evaluate(test_data, test_batch_size)
-print('=' * 89)
-print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
-    test_loss, math.exp(test_loss), test_loss / math.log(2)))
-print('=' * 89)
+if args.n_folds == 0:
+    # Load the best saved model.
+    model_load(args.save)
+
+    # Run on test data.
+    test_loss = evaluate(test_data, test_batch_size)
+    print('=' * 89)
+    print('| End of training | test loss {:5.2f} | test ppl {:8.2f} | test bpc {:8.3f}'.format(
+        test_loss, math.exp(test_loss), test_loss / math.log(2)))
+    print('=' * 89)
