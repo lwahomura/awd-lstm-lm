@@ -114,6 +114,8 @@ class Corpus(object):
         end = len(lines) if data_percentage == 100 else int(float(len(lines))/100*data_percentage)
         lines = lines[:end]
 
+        self.dictionary.add_word('<unk>')
+        
         tokens = 0
         for line in lines:
             words = line.split() + ['<eos>']
@@ -121,14 +123,15 @@ class Corpus(object):
             for word in words:
                 if use_unk:
                     if word in self.dictionary.word2idx:
+                        unk_words.discard(word)
                         continue
                     else:
-                        self.dictionary.add_word('<unk>')
+                        self.dictionary.add_word(word)
                         unk_words.add(word)
                         continue
                 else:
                     self.dictionary.add_word(word)
-
+        
         # Tokenize file content
         ids = torch.LongTensor(tokens)
         token = 0
